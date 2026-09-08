@@ -1,0 +1,2 @@
+winning sequence (most points): 1 > 3 > 3 > 2 > 2 
+winning sequence (least points): 1 > 1 > 1 > 1 > 2
