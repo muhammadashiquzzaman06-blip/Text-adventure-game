@@ -1,0 +1,39 @@
+The hardest bug encountered during development was a silent input buffer 
+bleed that occurred when reading the player's name via scanf("%49s", name). 
+When a user entered a name containing spaces—such as "Samwise Gamgee"—scanf 
+would consume "Samwise" into the name buffer but leave " Gamgee\n" sitting 
+unread in the standard input stream (stdin). 
+
+Because the game moves directly from name entry into inventory setup and the 
+Prologue choice, the subsequent call to scanf("%d", &choice) inside 
+get_valid_choice() immediately attempted to read from stdin without waiting 
+for user input. Finding "Gamgee", the integer conversion failed completely. 
+The inner error recovery loop flushed the invalid characters, but the unexpected 
+state progression skipped choice confirmations and corrupted player flow. 
+
+I identified this bug through interactive edge-case testing (Test 3 in the 
+test log). While monitoring input sequences, entering multi-word strings 
+caused the game to instantly trigger an invalid input warning and jump 
+straight past the prologue prompt. Using printf tracing before and after 
+each scanf call confirmed that stdin was retaining leftovers from the name 
+prompt, causing cascading failures in downstream menu loops.
+
+If I were to rebuild this project from scratch, I would change three key 
+architectural decisions:
+
+1. Unified Input Stream Handling: I would avoid using raw scanf("%s") or 
+   scanf("%d") entirely. Instead, I would implement a single helper function 
+   using fgets() to read full lines as raw text, followed by sscanf() or 
+   strtol() to parse numbers safely. This eliminates buffer leftover issues 
+   and handles multi-word names or trailing whitespace gracefully.
+
+2. Defensive File I/O Parsing: Rather than relying on simple %s format 
+   specifiers in fscanf()—which breaks if player names contain spaces—I would 
+   use CSV or structured line parsing (e.g., player_id,name,score,result) 
+   with strtok() or sscanf() line reading to ensure data file stability.
+
+3. Modular State Machine Architecture: I would decouple inventory state and 
+   act progression into an explicit GameState struct passed to a single state-
+   machine engine, rather than cascading return values through isolated act 
+   functions. This would make adding new items, branching storylines, or 
+   save-state systems vastly easier to maintain and test.
